@@ -18,6 +18,7 @@ export interface OnlineQuote {
   price: number;
   provider: string;
   asOf: string;
+  note?: string;
 }
 
 export interface MacroPoint {

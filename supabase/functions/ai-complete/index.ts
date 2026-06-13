@@ -11,12 +11,12 @@ const providerConfig = {
   groq: {
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
     apiKey: Deno.env.get('GROQ_API_KEY'),
-    model: 'llama-3.3-70b-versatile',
+    model: Deno.env.get('GROQ_MODEL') ?? 'llama-3.1-8b-instant',
   },
   openrouter: {
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     apiKey: Deno.env.get('OPENROUTER_API_KEY'),
-    model: 'openai/gpt-4o-mini',
+    model: Deno.env.get('OPENROUTER_MODEL') ?? 'openai/gpt-4o-mini',
   },
 } as const;
 

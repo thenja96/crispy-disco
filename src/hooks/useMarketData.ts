@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { candles as mockCandles } from '../data/mockData';
-import { fetchMt5Candles, fetchOnlineMarketData, type MarketDataSnapshot } from '../services/marketData';
+import {
+  buildSpotQuoteCandles,
+  fetchMt5Candles,
+  fetchOnlineMarketData,
+  type MarketDataSnapshot,
+} from '../services/marketData';
 import type { Timeframe } from '../types';
 
 export function useMarketData(timeframe: Timeframe): MarketDataSnapshot {
@@ -18,12 +23,39 @@ export function useMarketData(timeframe: Timeframe): MarketDataSnapshot {
 
     async function load() {
       const errors: string[] = [];
+      let onlineContext: Pick<MarketDataSnapshot, 'macro' | 'news' | 'message'> | null = null;
 
       try {
-        const online = await fetchOnlineMarketData();
-        if (!cancelled && online.quote) {
+        const online = await fetchOnlineMarketData(timeframe);
+        const warningText = online.warnings.length > 0 ? online.warnings.join('; ') : '';
+        onlineContext = {
+          macro: online.macro,
+          news: online.news,
+          message: warningText
+            ? `Online macro/news connected, but live quote is unavailable: ${warningText}`
+            : 'Online macro/news connected, but live quote is unavailable.',
+        };
+
+        if (!cancelled && online.candles && online.candles.length > 0) {
           setSnapshot({
-            candles: mockCandles,
+            candles: online.candles,
+            quote: online.quote ?? undefined,
+            macro: online.macro,
+            news: online.news,
+            source: 'online-api',
+            status: 'connected',
+            message:
+              online.warnings.length > 0
+                ? `Online candles connected from ${online.candleSource ?? 'market API'} with warnings: ${online.warnings.join('; ')}`
+                : `Online candles connected from ${online.candleSource ?? 'market API'}. Use this as futures reference data, not broker execution pricing.`,
+          });
+          return;
+        }
+
+        if (!cancelled && online.quote) {
+          const candles = buildSpotQuoteCandles(online.quote, timeframe);
+          setSnapshot({
+            candles,
             quote: online.quote,
             macro: online.macro,
             news: online.news,
@@ -32,7 +64,7 @@ export function useMarketData(timeframe: Timeframe): MarketDataSnapshot {
             message:
               online.warnings.length > 0
                 ? `Online APIs connected with warnings: ${online.warnings.join('; ')}`
-                : 'Online APIs connected: Alpha Vantage spot/news and FRED macro context.',
+                : 'Online APIs connected: chart is tracking Alpha Vantage spot quote with derived candles. Full M5/M15 broker candles still need MT5 or another candle feed.',
           });
           return;
         }
@@ -57,18 +89,18 @@ export function useMarketData(timeframe: Timeframe): MarketDataSnapshot {
           errors.push(error instanceof Error ? error.message : 'MT5 bridge unavailable.');
           setSnapshot({
             candles: mockCandles,
-            macro: [],
-            news: [],
+            macro: onlineContext?.macro ?? [],
+            news: onlineContext?.news ?? [],
             source: 'mock',
             status: 'fallback',
-            message: errors.join(' | '),
+            message: [onlineContext?.message, ...errors].filter(Boolean).join(' | '),
           });
         }
       }
     }
 
     void load();
-    const interval = window.setInterval(load, 15_000);
+    const interval = window.setInterval(load, 5 * 60_000);
 
     return () => {
       cancelled = true;

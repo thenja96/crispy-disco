@@ -45,6 +45,8 @@ OPENROUTER_API_KEY=
 GROQ_API_KEY=
 ALPHA_VANTAGE_API_KEY=
 FRED_API_KEY=
+GROQ_MODEL=llama-3.1-8b-instant
+OPENROUTER_MODEL=openai/gpt-4o-mini
 ```
 
 Never put provider secret keys into client-side `VITE_` variables.
@@ -58,6 +60,10 @@ Set these Vercel environment variables:
 ```bash
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 FRED_API_KEY=your_fred_key
+GROQ_API_KEY=your_groq_key
+OPENROUTER_API_KEY=your_openrouter_key
+GROQ_MODEL=llama-3.1-8b-instant
+OPENROUTER_MODEL=openai/gpt-4o-mini
 VITE_ONLINE_MARKET_DATA_URL=/api/online-market-data
 VITE_MARKET_SYMBOL=XAUUSD.s
 ```
@@ -70,11 +76,12 @@ api/online-market-data.js
 
 It fetches:
 
+- Yahoo Finance `GC=F` chart data for free deployed candle fallback.
 - Alpha Vantage `GOLD_SILVER_SPOT` for live gold spot price.
 - Alpha Vantage `NEWS_SENTIMENT` for market/economy headlines.
 - FRED series observations for macro context: US 10Y yield, real yield, breakeven inflation, Fed funds, trade-weighted USD, unemployment, NFP, and CPI.
 
-Important limitation: Alpha Vantage gold/silver history is daily/weekly/monthly, not free M5/M15 XAUUSD candles. The app can show an online live spot price from Alpha Vantage, but true intraday candle charts still need MT5 or a candle-capable provider such as Twelve Data or another market-data API.
+Important limitation: Yahoo `GC=F` is COMEX gold futures reference data, not your broker's XAUUSD spot execution feed. It is useful for a free live web chart and S/R monitoring, but entries/exits should still be checked against broker pricing. Alpha Vantage gold/silver history is daily/weekly/monthly, not free M5/M15 XAUUSD candles. True broker-matched intraday candles still need MT5 or a dedicated candle-capable provider.
 
 ## MT5 Live Price Bridge
 
@@ -125,7 +132,7 @@ The schema enables Row Level Security and indexes user/date/type fields used by 
 
 ## AI Routing
 
-The frontend calls `/api/ai/complete` through `src/services/aiProvider.ts`. The included Supabase Edge Function example in `supabase/functions/ai-complete/index.ts` keeps OpenRouter and GroqCloud keys server-side.
+The frontend calls `/api/ai/complete` through `src/services/aiProvider.ts`. The Vercel serverless endpoint lives at `api/ai/complete.js`; the included Supabase Edge Function example in `supabase/functions/ai-complete/index.ts` is an alternative if you prefer Supabase Edge Functions.
 
 Default routing:
 
