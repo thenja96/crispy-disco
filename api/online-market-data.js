@@ -30,6 +30,13 @@ const YAHOO_TIMEFRAMES = {
   H4: { interval: '60m', range: '1mo', aggregate: 4 },
 };
 
+const TWELVE_DATA_TIMEFRAMES = {
+  M5: '5min',
+  M15: '15min',
+  H1: '1h',
+  H4: '4h',
+};
+
 function json(res, status, payload) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
@@ -164,6 +171,58 @@ async function alphaGoldSpot(apiKey) {
   };
 }
 
+function normalizeTwelveDataCandles(payload) {
+  const values = Array.isArray(payload.values) ? payload.values : [];
+  const candles = values
+    .map((item) => ({
+      time: new Date(`${item.datetime.replace(' ', 'T')}Z`).toISOString(),
+      open: Number(item.open),
+      high: Number(item.high),
+      low: Number(item.low),
+      close: Number(item.close),
+    }))
+    .filter((candle) => {
+      return [candle.open, candle.high, candle.low, candle.close].every((value) => Number.isFinite(value));
+    })
+    .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+    .map((candle) => ({
+      time: candle.time,
+      open: Number(candle.open.toFixed(2)),
+      high: Number(candle.high.toFixed(2)),
+      low: Number(candle.low.toFixed(2)),
+      close: Number(candle.close.toFixed(2)),
+    }));
+
+  if (candles.length === 0) {
+    throw new Error(`Unable to parse Twelve Data XAU/USD payload: ${JSON.stringify(payload).slice(0, 300)}`);
+  }
+
+  return candles;
+}
+
+async function twelveDataGoldSpotCandles(apiKey, timeframe) {
+  const url = new URL('https://api.twelvedata.com/time_series');
+  url.searchParams.set('symbol', 'XAU/USD');
+  url.searchParams.set('interval', TWELVE_DATA_TIMEFRAMES[timeframe] ?? TWELVE_DATA_TIMEFRAMES.M15);
+  url.searchParams.set('outputsize', '300');
+  url.searchParams.set('apikey', apiKey);
+
+  const payload = await fetchJson(url);
+  const candles = normalizeTwelveDataCandles(payload);
+  const last = candles[candles.length - 1];
+
+  return {
+    candles,
+    quote: {
+      symbol: 'XAU/USD',
+      price: last.close,
+      provider: 'Twelve Data',
+      asOf: last.time,
+      note: 'Spot XAU/USD reference feed; compare against broker spread and session timing.',
+    },
+  };
+}
+
 function normalizeYahooCandles(payload, timeframe) {
   const result = payload.chart?.result?.[0];
   const timestamps = result?.timestamp;
@@ -249,6 +308,31 @@ async function yahooGoldFuturesCandles(timeframe) {
   };
 }
 
+async function onlineGoldCandles(timeframe, twelveDataKey) {
+  if (twelveDataKey) {
+    try {
+      return {
+        ...(await twelveDataGoldSpotCandles(twelveDataKey, timeframe)),
+        source: `Twelve Data XAU/USD ${timeframe}`,
+        warning: null,
+      };
+    } catch (error) {
+      const fallback = await yahooGoldFuturesCandles(timeframe);
+      return {
+        ...fallback,
+        source: `Yahoo Finance GC=F ${timeframe}`,
+        warning: `Twelve Data XAU/USD failed: ${error.message}. Falling back to Yahoo GC=F futures.`,
+      };
+    }
+  }
+
+  return {
+    ...(await yahooGoldFuturesCandles(timeframe)),
+    source: `Yahoo Finance GC=F ${timeframe}`,
+    warning: 'TWELVE_DATA_API_KEY is not configured; using Yahoo GC=F futures fallback.',
+  };
+}
+
 async function alphaNews(apiKey) {
   const url = new URL('https://www.alphavantage.co/query');
   url.searchParams.set('function', 'NEWS_SENTIMENT');
@@ -297,6 +381,7 @@ export default async function handler(req, res) {
 
   const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
   const fredKey = process.env.FRED_API_KEY;
+  const twelveDataKey = process.env.TWELVE_DATA_API_KEY;
   const timeframe = typeof req.query.timeframe === 'string' ? req.query.timeframe : 'M15';
 
   const result = {
@@ -312,14 +397,18 @@ export default async function handler(req, res) {
   };
 
   const candleResult = await readThroughMapCache(cache.candles, timeframe, CACHE_TTL.candles, () =>
-    yahooGoldFuturesCandles(timeframe),
+    onlineGoldCandles(timeframe, twelveDataKey),
   );
 
   if (candleResult.value) {
     result.candles = candleResult.value.candles;
     result.quote = candleResult.value.quote;
-    result.candleSource = `Yahoo Finance GC=F ${timeframe}`;
+    result.candleSource = candleResult.value.source;
     result.cache.candles = candleResult.cacheStatus;
+
+    if (candleResult.value.warning) {
+      result.warnings.push(candleResult.value.warning);
+    }
   }
 
   if (candleResult.warning) {

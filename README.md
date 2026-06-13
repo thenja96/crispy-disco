@@ -45,6 +45,7 @@ OPENROUTER_API_KEY=
 GROQ_API_KEY=
 ALPHA_VANTAGE_API_KEY=
 FRED_API_KEY=
+TWELVE_DATA_API_KEY=
 GROQ_MODEL=llama-3.1-8b-instant
 OPENROUTER_MODEL=openai/gpt-4o-mini
 ```
@@ -60,6 +61,7 @@ Set these Vercel environment variables:
 ```bash
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 FRED_API_KEY=your_fred_key
+TWELVE_DATA_API_KEY=your_twelve_data_key
 GROQ_API_KEY=your_groq_key
 OPENROUTER_API_KEY=your_openrouter_key
 GROQ_MODEL=llama-3.1-8b-instant
@@ -76,12 +78,13 @@ api/online-market-data.js
 
 It fetches:
 
-- Yahoo Finance `GC=F` chart data for free deployed candle fallback.
+- Twelve Data `XAU/USD` candles when `TWELVE_DATA_API_KEY` is configured.
+- Yahoo Finance `GC=F` chart data as a no-key fallback when Twelve Data is not configured or fails.
 - Alpha Vantage `GOLD_SILVER_SPOT` for live gold spot price.
 - Alpha Vantage `NEWS_SENTIMENT` for market/economy headlines.
 - FRED series observations for macro context: US 10Y yield, real yield, breakeven inflation, Fed funds, trade-weighted USD, unemployment, NFP, and CPI.
 
-Important limitation: Yahoo `GC=F` is COMEX gold futures reference data, not your broker's XAUUSD spot execution feed. It is useful for a free live web chart and S/R monitoring, but entries/exits should still be checked against broker pricing. Alpha Vantage gold/silver history is daily/weekly/monthly, not free M5/M15 XAUUSD candles. True broker-matched intraday candles still need MT5 or a dedicated candle-capable provider.
+Important limitation: Twelve Data `XAU/USD` should be closer to broker spot pricing than Yahoo `GC=F`, but it can still differ from your broker's `XAUUSD.s` because brokers use their own liquidity, spread, and symbol specifications. Yahoo `GC=F` is COMEX gold futures reference data, not broker spot execution pricing. Alpha Vantage gold/silver history is daily/weekly/monthly, not free M5/M15 XAUUSD candles. True broker-matched intraday candles still need MT5 or your broker's own API/feed.
 
 ## MT5 Live Price Bridge
 
