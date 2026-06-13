@@ -97,7 +97,7 @@ function clusterPivots(candles: Candle[], currentPrice: number) {
 
       return zoneFromLevel(
         `auto-pivot-${index}`,
-        `${pivot.type === 'support' ? 'Swing Support' : 'Swing Resistance'} ${pivot.price.toFixed(2)}`,
+        `${pivot.type === 'support' ? 'Swing S' : 'Swing R'} ${pivot.price.toFixed(2)}`,
         pivot.price,
         strength,
         `${pivot.touches} pivot touch${pivot.touches === 1 ? '' : 'es'} within recent structure.`,
@@ -126,8 +126,8 @@ function priorDayZones(candles: Candle[]) {
   const low = Math.min(...dayCandles.map((candle) => candle.low));
 
   return [
-    zoneFromLevel('auto-prev-day-high', `Prior Day High ${high.toFixed(2)}`, high, 82, 'Yesterday high; common stop and reaction area.'),
-    zoneFromLevel('auto-prev-day-low', `Prior Day Low ${low.toFixed(2)}`, low, 82, 'Yesterday low; common stop and reaction area.'),
+    zoneFromLevel('auto-prev-day-high', `PDH ${high.toFixed(2)}`, high, 82, 'Yesterday high; common stop and reaction area.'),
+    zoneFromLevel('auto-prev-day-low', `PDL ${low.toFixed(2)}`, low, 82, 'Yesterday low; common stop and reaction area.'),
   ];
 }
 
@@ -141,8 +141,8 @@ function sessionZones(candles: Candle[]) {
   const low = Math.min(...recent.map((candle) => candle.low));
 
   return [
-    zoneFromLevel('auto-session-high', `Recent Session High ${high.toFixed(2)}`, high, 76, 'Highest traded area in the recent intraday window.'),
-    zoneFromLevel('auto-session-low', `Recent Session Low ${low.toFixed(2)}`, low, 76, 'Lowest traded area in the recent intraday window.'),
+    zoneFromLevel('auto-session-high', `Session H ${high.toFixed(2)}`, high, 76, 'Highest traded area in the recent intraday window.'),
+    zoneFromLevel('auto-session-low', `Session L ${low.toFixed(2)}`, low, 76, 'Lowest traded area in the recent intraday window.'),
   ];
 }
 
@@ -155,7 +155,7 @@ function roundNumberZones(currentPrice: number) {
     const isMajor = level % (step * 2) === 0;
     return zoneFromLevel(
       `auto-round-${level}`,
-      `${isMajor ? 'Major' : 'Minor'} Round Number ${level.toFixed(2)}`,
+      `${isMajor ? 'Major' : 'Minor'} Round ${level.toFixed(2)}`,
       level,
       isMajor ? 72 : 62,
       'Psychological round-number magnet for gold liquidity.',
@@ -187,5 +187,26 @@ export function buildSupportResistanceZones(candles: Candle[], manualZones: Pric
       const distanceB = Math.abs((b.top + b.bottom) / 2 - currentPrice);
       return distanceA - distanceB || b.strength - a.strength;
     })
-    .slice(0, 14);
+    .slice(0, 8);
+}
+
+export function zonesForChart(zones: PriceZone[], currentPrice: number) {
+  const nearby = zones.filter((zone) => {
+    const center = (zone.top + zone.bottom) / 2;
+    return Math.abs(center - currentPrice) <= Math.max(90, currentPrice * 0.022);
+  });
+  const support = nearby
+    .filter((zone) => zone.top < currentPrice)
+    .sort((a, b) => b.top - a.top)[0];
+  const resistance = nearby
+    .filter((zone) => zone.bottom > currentPrice)
+    .sort((a, b) => a.bottom - b.bottom)[0];
+  const strongest = nearby
+    .filter((zone) => zone.id !== support?.id && zone.id !== resistance?.id)
+    .sort((a, b) => b.strength - a.strength)
+    .slice(0, 2);
+
+  return [support, resistance, ...strongest]
+    .filter((zone): zone is PriceZone => Boolean(zone))
+    .sort((a, b) => (b.top + b.bottom) / 2 - (a.top + a.bottom) / 2);
 }

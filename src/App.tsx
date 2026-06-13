@@ -23,7 +23,7 @@ import { Review } from './components/Review';
 import { SettingsView } from './components/SettingsView';
 import { calculateReaction } from './lib/reactionEngine';
 import { scoreCurrentSetup } from './lib/setupScoring';
-import { buildSupportResistanceZones } from './lib/supportResistance';
+import { buildSupportResistanceZones, zonesForChart } from './lib/supportResistance';
 import { coachingInsights, journalEntries, marketEvents, priceZones, reactions } from './data/mockData';
 import { useMarketData } from './hooks/useMarketData';
 import { configuredMarketSymbol } from './services/marketData';
@@ -50,6 +50,10 @@ export function App() {
   const activeCandles = marketData.candles;
   const symbol = configuredMarketSymbol();
   const activeZones = useMemo(() => buildSupportResistanceZones(activeCandles, priceZones), [activeCandles]);
+  const chartZones = useMemo(
+    () => zonesForChart(activeZones, activeCandles[activeCandles.length - 1]?.close ?? 0),
+    [activeCandles, activeZones],
+  );
 
   const calculatedReactions = useMemo(
     () => [
@@ -139,7 +143,7 @@ export function App() {
           <Dashboard
             candles={activeCandles}
             events={marketEvents}
-            zones={activeZones}
+            zones={chartZones}
             reactions={calculatedReactions}
             setupScore={setupScore}
             marketMessage={marketData.message}
@@ -156,7 +160,7 @@ export function App() {
               candles={activeCandles}
               events={marketEvents}
               timeframe={timeframe}
-              zones={activeZones}
+              zones={chartZones}
               onTimeframeChange={setTimeframe}
             />
             <div className="panel">

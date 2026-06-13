@@ -19,6 +19,46 @@ interface ChartPanelProps {
 
 const timeframes: Timeframe[] = ['M5', 'M15', 'H1', 'H4'];
 
+function zoneCenter(zone: PriceZone) {
+  return Number(((zone.top + zone.bottom) / 2).toFixed(2));
+}
+
+function zoneTitle(zone: PriceZone) {
+  if (zone.kind === 'manual') {
+    return 'Manual';
+  }
+
+  if (zone.id.includes('prev-day-high')) {
+    return 'PDH';
+  }
+
+  if (zone.id.includes('prev-day-low')) {
+    return 'PDL';
+  }
+
+  if (zone.id.includes('session-high')) {
+    return 'Session H';
+  }
+
+  if (zone.id.includes('session-low')) {
+    return 'Session L';
+  }
+
+  if (zone.id.includes('round')) {
+    return 'Round';
+  }
+
+  if (/resistance/i.test(zone.label)) {
+    return 'Swing R';
+  }
+
+  if (/support/i.test(zone.label)) {
+    return 'Swing S';
+  }
+
+  return 'Auto';
+}
+
 export function ChartPanel({ candles, events, zones, timeframe, onTimeframeChange }: ChartPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartData = useMemo(
@@ -73,21 +113,15 @@ export function ChartPanel({ candles, events, zones, timeframe, onTimeframeChang
 
     series.setData(chartData);
     zones.forEach((zone) => {
+      const isManual = zone.kind === 'manual';
+      const price = zoneCenter(zone);
       series.createPriceLine({
-        price: zone.top,
-        color: zone.kind === 'manual' ? '#d9aa4a' : '#7d8ca8',
-        lineWidth: zone.kind === 'manual' ? 2 : 1,
-        lineStyle: zone.kind === 'manual' ? LineStyle.Solid : LineStyle.Dashed,
+        price,
+        color: isManual ? '#d9aa4a' : 'rgba(148, 163, 184, 0.82)',
+        lineWidth: isManual ? 2 : 1,
+        lineStyle: isManual ? LineStyle.Solid : LineStyle.Dashed,
         axisLabelVisible: true,
-        title: zone.kind === 'manual' ? 'Manual Zone' : 'Auto Pivot',
-      });
-      series.createPriceLine({
-        price: zone.bottom,
-        color: zone.kind === 'manual' ? '#d9aa4a' : '#7d8ca8',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        axisLabelVisible: false,
-        title: zone.label,
+        title: zoneTitle(zone),
       });
     });
 
@@ -129,8 +163,8 @@ export function ChartPanel({ candles, events, zones, timeframe, onTimeframeChang
       </div>
       <div className="level-toggles">
         <span>Manual Zone</span>
-        <span>Auto Pivot</span>
-        <span>Price Near Zone</span>
+        <span>Nearest S/R</span>
+        <span>Key Context</span>
         <span>News Window Open</span>
       </div>
       <div className="chart-canvas" ref={containerRef} />
