@@ -23,6 +23,7 @@ import { Review } from './components/Review';
 import { SettingsView } from './components/SettingsView';
 import { calculateReaction } from './lib/reactionEngine';
 import { scoreCurrentSetup } from './lib/setupScoring';
+import { buildSupportResistanceZones } from './lib/supportResistance';
 import { coachingInsights, journalEntries, marketEvents, priceZones, reactions } from './data/mockData';
 import { useMarketData } from './hooks/useMarketData';
 import { configuredMarketSymbol } from './services/marketData';
@@ -48,17 +49,18 @@ export function App() {
   const marketData = useMarketData(timeframe);
   const activeCandles = marketData.candles;
   const symbol = configuredMarketSymbol();
+  const activeZones = useMemo(() => buildSupportResistanceZones(activeCandles, priceZones), [activeCandles]);
 
   const calculatedReactions = useMemo(
     () => [
       ...reactions,
       ...marketEvents
         .filter((event) => !reactions.some((reaction) => reaction.eventId === event.id))
-        .map((event) => calculateReaction(event, activeCandles, priceZones)),
+        .map((event) => calculateReaction(event, activeCandles, activeZones)),
     ],
-    [activeCandles],
+    [activeCandles, activeZones],
   );
-  const setupScore = useMemo(() => scoreCurrentSetup(activeCandles, priceZones, marketEvents, entries), [activeCandles, entries]);
+  const setupScore = useMemo(() => scoreCurrentSetup(activeCandles, activeZones, marketEvents, entries), [activeCandles, activeZones, entries]);
   const selectedTrade = entries.find((entry) => entry.id === selectedTradeId) ?? entries[0];
   const latestPrice = marketData.quote?.price ?? activeCandles[activeCandles.length - 1].close;
 
@@ -137,7 +139,7 @@ export function App() {
           <Dashboard
             candles={activeCandles}
             events={marketEvents}
-            zones={priceZones}
+            zones={activeZones}
             reactions={calculatedReactions}
             setupScore={setupScore}
             marketMessage={marketData.message}
@@ -154,7 +156,7 @@ export function App() {
               candles={activeCandles}
               events={marketEvents}
               timeframe={timeframe}
-              zones={priceZones}
+              zones={activeZones}
               onTimeframeChange={setTimeframe}
             />
             <div className="panel">
@@ -166,7 +168,7 @@ export function App() {
                 <BarChart3 size={20} />
               </div>
               <div className="zone-list">
-                {priceZones.map((zone) => (
+                {activeZones.map((zone) => (
                   <article className="zone-card" key={zone.id}>
                     <div>
                       <strong>{zone.label}</strong>

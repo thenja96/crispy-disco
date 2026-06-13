@@ -197,21 +197,27 @@ function normalizeYahooCandles(payload, timeframe) {
     return candles;
   }
 
-  const aggregated = [];
-  for (let index = 0; index < candles.length; index += aggregate) {
-    const group = candles.slice(index, index + aggregate);
-    if (group.length < aggregate) {
-      continue;
-    }
+  const bucketMs = aggregate * 60 * 60 * 1000;
+  const groups = new Map();
 
-    aggregated.push({
-      time: group[0].time,
+  candles.forEach((candle) => {
+    const timestamp = new Date(candle.time).getTime();
+    const bucketStart = Math.floor(timestamp / bucketMs) * bucketMs;
+    const bucketKey = String(bucketStart);
+    const group = groups.get(bucketKey) ?? [];
+    group.push(candle);
+    groups.set(bucketKey, group);
+  });
+
+  const aggregated = Array.from(groups.entries())
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([bucketStart, group]) => ({
+      time: new Date(Number(bucketStart)).toISOString(),
       open: group[0].open,
       high: Number(Math.max(...group.map((item) => item.high)).toFixed(2)),
       low: Number(Math.min(...group.map((item) => item.low)).toFixed(2)),
       close: group[group.length - 1].close,
-    });
-  }
+    }));
 
   return aggregated;
 }
